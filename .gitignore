@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+dist/
+build/
+*.egg-info/
+
+# Unity
+Library/
+Temp/
+Logs/
+Obj/
+Build/
+Builds/
+UserSettings/
+.vs/
+*.csproj
+*.sln
+*.user
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.opendb
+*.VC.db
+
+# Native build outputs
+*.o
+*.obj
+*.lib
+*.pdb
+
+# Large binaries / media
+*.apk
+*.aab
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.h264
+*.h265
+*.hevc
+*.av1
+*.webm
+*.zip
+*.7z
+*.rar
+
+# Local configuration
+config.ini
+.env
+local_paths.txt
+PREPARED_FROM_LOCAL_PATHS.md
+PRIVACY_SCAN_FAILED.md
+
+# Bundled runtimes
+Runtime/
+launcher/Runtime/
+
+# Editor
+.vscode/
+.idea/
