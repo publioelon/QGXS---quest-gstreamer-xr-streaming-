@@ -1,4 +1,4 @@
-# Quest GStreamer Receiver Unity Project
+﻿# QSXR Receiver Unity Project
 
 Open this folder with Unity 2022.3.x.
 

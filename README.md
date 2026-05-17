@@ -1,4 +1,4 @@
-# Quest GStreamer XR Streaming
+﻿# Quest GStreamer XR Streaming
 
 This repository contains a Quest-native GStreamer receiver prototype integrated with Unity, plus a Windows desktop sender and launcher.
 
@@ -13,7 +13,7 @@ launcher/
 sender/
   Python sender backend and GStreamer/WebRTC sender code.
 
-receiver/unity/QuestGStreamerReceiver/
+receiver/unity/QSXRReceiver/
   Unity receiver project files.
 
 receiver/native/GstQuestInitPlugin/
