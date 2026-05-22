@@ -21,6 +21,7 @@ def print_usage() -> None:
     print(
         "  python webrtc_sender.py <codec> --input-mode <video-file|image-folder> "
         "--input <path> [--image-format <auto|jpg|png|webp|avif>] "
+        "[--loop|--no-loop] "
         "<host> <port> [width] [height] [fps] [bitrate_kbps]\n"
     )
 
@@ -48,25 +49,29 @@ def print_usage() -> None:
     print("Image formats:")
     print("  auto | jpg | jpeg | png | webp | avif\n")
 
+    print("Loop playback:")
+    print("  --loop       Enable looping when the input reaches EOS.")
+    print("  --no-loop    Disable looping and stop at EOS.\n")
+
     print("Examples:")
     print(
         '  python webrtc_sender.py h265 --input-mode video-file '
-        '--input "./Samples/videos/sample.mp4" '
+        '--input "./Samples/videos/sample.mp4" --loop '
         "127.0.0.1 9001 1920 960 30 8000"
     )
     print(
         '  python webrtc_sender.py h264 --input-mode video-file '
-        '--input "./Samples/videos/sample.mp4" '
+        '--input "./Samples/videos/sample.mp4" --no-loop '
         "127.0.0.1 9001 1920 960 30 8000"
     )
     print(
         '  python webrtc_sender.py av1 --input-mode video-file '
-        '--input "./Samples/videos/sample.mp4" '
+        '--input "./Samples/videos/sample.mp4" --loop '
         "127.0.0.1 9001 1920 960 30 8000"
     )
     print(
         '  python webrtc_sender.py h265 --input-mode image-folder '
-        '--input "./Samples/frames" --image-format auto '
+        '--input "./Samples/frames" --image-format auto --loop '
         "127.0.0.1 9001 1920 960 30 8000\n"
     )
 
@@ -86,7 +91,13 @@ def print_usage() -> None:
     print("  Both relative and absolute paths are supported.")
     print("  Unity receiver width/height must match the sender width/height.")
     print("  Image-folder mode requires backend support in config.py, pipeline_builder.py, and gst_app.py.")
-    print("  AV1 uses CPU encoding through svtav1enc unless GPU AV1 support is added later.\n")
+    print("  AV1 uses CPU encoding through svtav1enc unless GPU AV1 support is added later.")
+    print("  --loop is enabled by default unless --no-loop is provided.\n")
+
+
+def _ensure_loop_field(config: SenderConfig) -> None:
+    if not hasattr(config, "loop"):
+        config.loop = True
 
 
 def _set_input_fields(
@@ -95,24 +106,12 @@ def _set_input_fields(
     input_path: str,
     image_format: str,
 ) -> None:
-    """
-    Keep compatibility with both old and new SenderConfig versions.
-
-    Old code expects:
-        config.video_path
-
-    New code should use:
-        config.input_mode
-        config.input_path
-        config.image_format
-    """
     input_path = normalize_path_for_gstreamer(input_path)
 
     config.input_mode = input_mode
     config.input_path = input_path
     config.image_format = image_format
 
-    # Backward compatibility for older modules.
     config.video_path = input_path
 
 
@@ -121,12 +120,6 @@ def _parse_optional_stream_values(
     values: list[str],
     expected_context: str,
 ) -> bool:
-    """
-    Parse:
-        host port [width] [height] [fps] [bitrate_kbps]
-
-    into config.
-    """
     if len(values) < 2:
         print(
             f"Missing host/port after {expected_context}. "
@@ -164,17 +157,11 @@ def _parse_optional_stream_values(
 
 
 def _parse_new_flag_syntax(config: SenderConfig, args: list[str]) -> bool:
-    """
-    Parse new syntax after codec:
-
-        --input-mode image-folder --input ./Samples/frames --image-format auto
-        127.0.0.1 9001 1920 960 30 8000
-
-    The flags may appear before the host/port block.
-    """
     input_mode = "video-file"
     input_path: Optional[str] = None
     image_format = "auto"
+
+    _ensure_loop_field(config)
 
     remaining: list[str] = []
     i = 0
@@ -227,11 +214,24 @@ def _parse_new_flag_syntax(config: SenderConfig, args: list[str]) -> bool:
             i += 2
             continue
 
+        if token == "--loop":
+            config.loop = True
+            i += 1
+            continue
+
+        if token == "--no-loop":
+            config.loop = False
+            i += 1
+            continue
+
         if token in ("--help", "-h", "/?"):
             print_usage()
             return False
 
-        # First non-flag begins the host/port block.
+        if token.startswith("--"):
+            print(f"Unknown option: {token}", file=sys.stderr)
+            return False
+
         remaining = args[i:]
         break
 
@@ -249,11 +249,8 @@ def _parse_new_flag_syntax(config: SenderConfig, args: list[str]) -> bool:
 
 
 def _parse_old_codec_syntax(config: SenderConfig, args: list[str]) -> bool:
-    """
-    Parse old syntax after codec:
+    _ensure_loop_field(config)
 
-        <video_path> <host> <port> [width] [height] [fps] [bitrate_kbps]
-    """
     if len(args) < 3:
         print(
             "Missing arguments. Expected: <video_path> <host> <port> "
@@ -273,13 +270,7 @@ def _parse_old_codec_syntax(config: SenderConfig, args: list[str]) -> bool:
 
 
 def _parse_old_no_codec_syntax(config: SenderConfig, args: list[str]) -> bool:
-    """
-    Parse old syntax without codec:
-
-        <video_path> <host> <port> [width] [height] [fps] [bitrate_kbps]
-
-    In this mode codec defaults to H.265.
-    """
+    _ensure_loop_field(config)
     config.codec = "h265"
 
     if len(args) < 3:
@@ -302,6 +293,7 @@ def _parse_old_no_codec_syntax(config: SenderConfig, args: list[str]) -> bool:
 
 def parse_arguments(argv: list[str]) -> Optional[SenderConfig]:
     config = SenderConfig()
+    _ensure_loop_field(config)
 
     if len(argv) <= 1:
         print_usage()
@@ -330,16 +322,13 @@ def parse_arguments(argv: list[str]) -> Optional[SenderConfig]:
             return None
 
     else:
-        # Old syntax: first argument is the video path, codec defaults to H.265.
         ok = _parse_old_no_codec_syntax(config, argv[1:])
 
         if not ok:
             return None
 
-    # Normalize aliases after parsing.
     config.codec = config.codec.strip().lower()
 
-    # Ensure input fields exist even with older config.py versions.
     if not hasattr(config, "input_mode"):
         config.input_mode = "video-file"
 
@@ -349,11 +338,11 @@ def parse_arguments(argv: list[str]) -> Optional[SenderConfig]:
     if not hasattr(config, "image_format"):
         config.image_format = "auto"
 
+    _ensure_loop_field(config)
+
     config.input_mode = str(config.input_mode).strip().lower()
     config.input_path = normalize_path_for_gstreamer(str(config.input_path))
     config.image_format = str(config.image_format).strip().lower()
-
-    # Keep old video_path synchronized for older modules.
     config.video_path = config.input_path
 
     if not validate_runtime_parameters(config):

@@ -14,13 +14,6 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, ttk
 from typing import Optional
 
-try:
-    from quest_discovery import discover_quest
-except Exception as exc:
-    discover_quest = None
-    QUEST_DISCOVERY_IMPORT_ERROR = exc
-
-
 
 APP_TITLE = "GStreamer Unity WebRTC Launcher"
 CONFIG_FILE = "config.ini"
@@ -31,10 +24,6 @@ IMAGE_FORMATS = ["auto", "jpg", "jpeg", "png", "webp", "avif"]
 SUPPORTED_IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".avif"}
 SUPPORTED_VIDEO_EXTS = {".mp4", ".mov", ".mkv", ".avi", ".webm"}
 
-
-# ============================================================
-# Portable path detection helpers
-# ============================================================
 
 def _existing_path_or_empty(path: Optional[Path]) -> str:
     if path is None:
@@ -107,10 +96,8 @@ def _is_valid_gstreamer_root(path: Path) -> bool:
 def detect_gstreamer_root(base_dir: Path) -> Optional[Path]:
     candidates: list[Path] = []
 
-    # 1. Portable/bundled runtime next to the launcher.
     candidates.append(base_dir / "Runtime" / "GStreamer")
 
-    # 2. Environment variables commonly used for GStreamer.
     for env_name in (
         "GST_ROOT",
         "GSTREAMER_ROOT",
@@ -121,12 +108,10 @@ def detect_gstreamer_root(base_dir: Path) -> Optional[Path]:
         if env_path is not None:
             candidates.append(env_path)
 
-    # 3. Common Windows install locations using ProgramFiles environment variables.
     for root in _program_files_roots():
         candidates.append(root / "gstreamer" / "1.0" / "msvc_x86_64")
         candidates.append(root / "GStreamer" / "1.0" / "msvc_x86_64")
 
-    # 4. PATH lookup.
     for exe_name in ("gst-launch-1.0.exe", "gst-launch-1.0"):
         found = shutil.which(exe_name)
         if found:
@@ -154,12 +139,6 @@ def detect_gstreamer_root(base_dir: Path) -> Optional[Path]:
 
 
 def _unity_version_key(unity_exe: Path) -> tuple:
-    """
-    Unity Hub layout is usually:
-        .../Unity/Hub/Editor/2022.3.62f1/Editor/Unity.exe
-
-    This extracts the version folder and sorts newer versions last.
-    """
     try:
         version_text = unity_exe.parent.parent.name
     except Exception:
@@ -195,21 +174,17 @@ def _is_unity_exe(path: Path) -> bool:
 def detect_unity_exe(base_dir: Path) -> Optional[Path]:
     candidates: list[Path] = []
 
-    # 1. Optional portable/custom receiver layout.
     candidates.append(base_dir / "Runtime" / "Unity" / "Editor" / "Unity.exe")
     candidates.append(base_dir / "Unity" / "Editor" / "Unity.exe")
 
-    # 2. Environment variable override.
     env_unity = _path_from_env("UNITY_EXE")
     if env_unity is not None:
         candidates.append(env_unity)
 
-    # 3. PATH lookup.
     found = shutil.which("Unity.exe")
     if found:
         candidates.append(Path(found))
 
-    # 4. Unity Hub default layout.
     for root in _program_files_roots():
         hub_root = root / "Unity" / "Hub" / "Editor"
 
@@ -300,12 +275,6 @@ def detect_python_exe(base_dir: Path) -> Optional[Path]:
 
 
 def detect_default_video_or_folder(base_dir: Path) -> str:
-    """
-    Optional convenience only.
-
-    This does not search user folders. It only checks project-local sample folders
-    that may be packaged with the launcher.
-    """
     sample_dirs = [
         base_dir / "Samples" / "frames",
         base_dir / "Samples" / "Images",
@@ -355,8 +324,8 @@ class LauncherApp(tk.Tk):
         super().__init__()
 
         self.title(APP_TITLE)
-        self.geometry("1180x800")
-        self.minsize(1040, 720)
+        self.geometry("1280x820")
+        self.minsize(1120, 740)
 
         self.base_dir = Path(__file__).resolve().parent
         self.config_path = self.base_dir / CONFIG_FILE
@@ -370,10 +339,6 @@ class LauncherApp(tk.Tk):
         self._create_ui()
         self._poll_log_queue()
         self._update_status_loop()
-
-    # ============================================================
-    # Variables / config
-    # ============================================================
 
     def _create_variables(self) -> None:
         self.gst_root_var = tk.StringVar()
@@ -393,10 +358,44 @@ class LauncherApp(tk.Tk):
         self.height_var = tk.StringVar(value="960")
         self.fps_var = tk.StringVar(value="30")
         self.bitrate_var = tk.StringVar(value="8000")
+        self.loop_var = tk.BooleanVar(value=True)
 
         self.unity_status_var = tk.StringVar(value="Unity: stopped")
         self.sender_status_var = tk.StringVar(value="Sender: stopped")
         self.input_hint_var = tk.StringVar(value="Select an MP4/MOV/MKV/AVI/WEBM video file.")
+
+        self.dashboard_vars: dict[str, tk.StringVar] = {}
+        dashboard_defaults = {
+            "signaling_state": "n/a",
+            "webrtc_state": "n/a",
+            "ice_state": "n/a",
+            "selected_route": "n/a",
+            "rtt_ms": "n/a",
+            "codec": "n/a",
+            "resolution": "n/a",
+            "target_fps": "n/a",
+            "actual_fps": "n/a",
+            "encoder": "n/a",
+            "target_bitrate_mbps": "n/a",
+            "actual_bitrate_mbps": "n/a",
+            "estimated_bandwidth_mbps": "n/a",
+            "packets_sent": "n/a",
+            "bytes_sent": "n/a",
+            "packet_loss_pct": "n/a",
+            "jitter_ms": "n/a",
+            "pipeline_state": "n/a",
+            "last_error": "n/a",
+            "receiver_alive": "0",
+            "receiver_display_mode": "n/a",
+            "receiver_unity_fps": "n/a",
+            "receiver_copied_fps": "n/a",
+            "receiver_frame_id": "0",
+            "receiver_texture_attached": "0",
+            "receiver_stall": "n/a",
+        }
+
+        for key, value in dashboard_defaults.items():
+            self.dashboard_vars[key] = tk.StringVar(value=value)
 
     def _set_detected_defaults(self) -> None:
         gst_root = detect_gstreamer_root(self.base_dir)
@@ -436,14 +435,6 @@ class LauncherApp(tk.Tk):
         return ""
 
     def _load_config_or_defaults(self) -> None:
-        """
-        Load portable auto-detected defaults first.
-
-        Then load config.ini only if it exists. Path values from config.ini are
-        accepted only when they exist on the current machine. This prevents a
-        packaged/stale config.ini from forcing another user's computer to show
-        paths from the original developer's machine.
-        """
         self._set_detected_defaults()
 
         if not self.config_path.exists():
@@ -490,6 +481,7 @@ class LauncherApp(tk.Tk):
         self.height_var.set(s.get("height", self.height_var.get()).strip())
         self.fps_var.set(s.get("fps", self.fps_var.get()).strip())
         self.bitrate_var.set(s.get("bitrate", self.bitrate_var.get()).strip())
+        self.loop_var.set(s.getboolean("loop", fallback=True))
 
         if self.input_mode_var.get() not in INPUT_MODES:
             if self.input_path_var.get() and Path(self.input_path_var.get()).is_dir():
@@ -508,14 +500,10 @@ class LauncherApp(tk.Tk):
             "unityProject": self.unity_project_var.get().strip(),
             "senderBackend": self.sender_backend_var.get().strip(),
             "pythonExe": self.python_exe_var.get().strip(),
-
             "inputMode": self.input_mode_var.get().strip(),
             "inputPath": self.input_path_var.get().strip(),
             "imageFormat": self.image_format_var.get().strip(),
-
-            # Keep this old key for backward compatibility with previous config files.
             "videoFile": self.input_path_var.get().strip(),
-
             "codec": self.codec_var.get().strip(),
             "host": self.host_var.get().strip(),
             "port": self.port_var.get().strip(),
@@ -523,16 +511,13 @@ class LauncherApp(tk.Tk):
             "height": self.height_var.get().strip(),
             "fps": self.fps_var.get().strip(),
             "bitrate": self.bitrate_var.get().strip(),
+            "loop": "true" if self.loop_var.get() else "false",
         }
 
         with self.config_path.open("w", encoding="utf-8") as f:
             parser.write(f)
 
         self.log(f"[gui] Settings saved to: {self.config_path}")
-
-    # ============================================================
-    # UI construction
-    # ============================================================
 
     def _create_ui(self) -> None:
         self.columnconfigure(0, weight=1)
@@ -596,9 +581,9 @@ class LauncherApp(tk.Tk):
         row = ttk.Frame(stream)
         row.grid(row=2, column=0, columnspan=4, sticky="ew", pady=(8, 0))
 
-        for i in range(14):
+        for i in range(16):
             row.columnconfigure(i, weight=0)
-        row.columnconfigure(13, weight=1)
+        row.columnconfigure(15, weight=1)
 
         ttk.Label(row, text="Codec").grid(row=0, column=0, sticky="w", padx=(0, 6))
         codec_box = ttk.Combobox(row, textvariable=self.codec_var, values=CODECS, width=8, state="readonly")
@@ -606,16 +591,23 @@ class LauncherApp(tk.Tk):
 
         self._small_entry(row, "Host", self.host_var, 2, width=14)
         self._small_entry(row, "Port", self.port_var, 4, width=7)
-        ttk.Button(row, text="Scan for Quest", command=self.scan_for_quest).grid(row=0, column=14, padx=(16, 0), sticky="w")
         self._small_entry(row, "Width", self.width_var, 6, width=7)
         self._small_entry(row, "Height", self.height_var, 8, width=7)
         self._small_entry(row, "FPS", self.fps_var, 10, width=6)
         self._small_entry(row, "Bitrate kbps", self.bitrate_var, 12, width=9)
 
+        ttk.Checkbutton(row, text="Loop playback", variable=self.loop_var).grid(
+            row=0,
+            column=14,
+            sticky="w",
+            padx=(0, 14),
+        )
+
         controls = ttk.LabelFrame(root, text="3. Control", padding=10)
         controls.grid(row=3, column=0, sticky="nsew", pady=(0, 10))
         controls.columnconfigure(0, weight=1)
-        controls.rowconfigure(2, weight=1)
+        controls.rowconfigure(2, weight=0)
+        controls.rowconfigure(3, weight=1)
 
         button_row = ttk.Frame(controls)
         button_row.grid(row=0, column=0, sticky="ew")
@@ -639,8 +631,10 @@ class LauncherApp(tk.Tk):
         ttk.Label(status_row, textvariable=self.unity_status_var).grid(row=0, column=0, sticky="w", padx=(0, 18))
         ttk.Label(status_row, textvariable=self.sender_status_var).grid(row=0, column=1, sticky="w")
 
+        self._create_research_dashboard(controls)
+
         log_frame = ttk.LabelFrame(controls, text="Runtime Log", padding=6)
-        log_frame.grid(row=2, column=0, sticky="nsew")
+        log_frame.grid(row=3, column=0, sticky="nsew")
         log_frame.columnconfigure(0, weight=1)
         log_frame.rowconfigure(0, weight=1)
 
@@ -652,8 +646,8 @@ class LauncherApp(tk.Tk):
         self.log_text.configure(yscrollcommand=scrollbar.set)
 
         note = (
-            "Workflow reminder: Launch Unity → press Play in Unity → click Game view → press S "
-            "to start the native receiver → Start Streaming here. Press X in Unity to stop the receiver."
+            "Workflow reminder: Launch Unity Receiver → press Play in Unity → "
+            "wait for the WebRTC receiver to listen → Start Streaming here."
         )
         ttk.Label(root, text=note, foreground="#444").grid(row=4, column=0, sticky="w")
 
@@ -662,6 +656,159 @@ class LauncherApp(tk.Tk):
         self.log("[gui] Ready.")
         self.log("[gui] Paths are auto-detected when possible. Missing fields can be filled with Browse.")
         self.log("[gui] This launcher uses the sender backend selected in the Sender backend field.")
+
+    def _create_research_dashboard(self, parent) -> None:
+        dashboard = ttk.LabelFrame(parent, text="Research Dashboard", padding=8)
+        dashboard.grid(row=2, column=0, sticky="ew", pady=(0, 8))
+
+        for col in range(6):
+            dashboard.columnconfigure(col, weight=1)
+
+        self._dashboard_group(
+            dashboard,
+            0,
+            "Connection",
+            [
+                ("Signaling", "signaling_state", ""),
+                ("WebRTC", "webrtc_state", ""),
+                ("ICE", "ice_state", ""),
+                ("Route", "selected_route", ""),
+                ("RTT", "rtt_ms", " ms"),
+            ],
+        )
+
+        self._dashboard_group(
+            dashboard,
+            1,
+            "Stream",
+            [
+                ("Codec", "codec", ""),
+                ("Resolution", "resolution", ""),
+                ("Target FPS", "target_fps", ""),
+                ("Actual FPS", "actual_fps", ""),
+                ("Encoder", "encoder", ""),
+            ],
+        )
+
+        self._dashboard_group(
+            dashboard,
+            2,
+            "Bitrate",
+            [
+                ("Target Bitrate", "target_bitrate_mbps", " Mbps"),
+                ("Actual Bitrate", "actual_bitrate_mbps", " Mbps"),
+                ("Estimated BW", "estimated_bandwidth_mbps", " Mbps"),
+            ],
+        )
+
+        self._dashboard_group(
+            dashboard,
+            3,
+            "Network",
+            [
+                ("Packets Sent", "packets_sent", ""),
+                ("Bytes Sent", "bytes_sent", ""),
+                ("Packet Loss", "packet_loss_pct", " %"),
+                ("Jitter", "jitter_ms", " ms"),
+            ],
+        )
+
+        self._dashboard_group(
+            dashboard,
+            4,
+            "Receiver",
+            [
+                ("Alive", "receiver_alive", ""),
+                ("Display", "receiver_display_mode", ""),
+                ("Unity FPS", "receiver_unity_fps", ""),
+                ("Copied FPS", "receiver_copied_fps", ""),
+                ("Frame ID", "receiver_frame_id", ""),
+                ("Texture", "receiver_texture_attached", ""),
+                ("Stall", "receiver_stall", ""),
+            ],
+        )
+
+        self._dashboard_group(
+            dashboard,
+            5,
+            "System",
+            [
+                ("Pipeline", "pipeline_state", ""),
+                ("Last Warning/Error", "last_error", ""),
+            ],
+        )
+
+    def _dashboard_group(self, parent, col: int, title: str, rows: list[tuple[str, str, str]]) -> None:
+        frame = ttk.LabelFrame(parent, text=title, padding=8)
+        frame.grid(row=0, column=col, sticky="nsew", padx=(0, 8 if col < 5 else 0))
+        frame.columnconfigure(1, weight=1)
+
+        for row_idx, (label, key, suffix) in enumerate(rows):
+            ttk.Label(frame, text=f"{label}:").grid(row=row_idx, column=0, sticky="w", padx=(0, 8), pady=1)
+
+            var = tk.StringVar()
+            self.dashboard_vars[f"_display_{key}"] = var
+            self._refresh_dashboard_display_value(key, suffix)
+
+            ttk.Label(frame, textvariable=var).grid(row=row_idx, column=1, sticky="w", pady=1)
+
+    def _refresh_dashboard_display_value(self, key: str, suffix: str = "") -> None:
+        display_key = f"_display_{key}"
+
+        if display_key not in self.dashboard_vars or key not in self.dashboard_vars:
+            return
+
+        value = self.dashboard_vars[key].get()
+
+        if key == "receiver_alive":
+            value = "yes" if value in ("1", "true", "True", "yes") else "no"
+        elif key in ("receiver_texture_attached", "receiver_stall"):
+            if value in ("1", "true", "True", "yes"):
+                value = "yes"
+            elif value in ("0", "false", "False", "no"):
+                value = "no"
+        elif suffix and value not in ("", "n/a", "unknown"):
+            value = value + suffix
+
+        self.dashboard_vars[display_key].set(value)
+
+    def parse_metrics_line(self, line: str) -> dict[str, str]:
+        if line.startswith("METRICS|"):
+            line = line[len("METRICS|"):]
+
+        values: dict[str, str] = {}
+
+        for part in line.split("|"):
+            if "=" not in part:
+                continue
+
+            key, value = part.split("=", 1)
+            key = key.strip()
+            value = value.strip()
+
+            if key:
+                values[key] = value
+
+        return values
+
+    def update_dashboard_from_metrics_line(self, line: str) -> None:
+        values = self.parse_metrics_line(line)
+
+        suffixes = {
+            "rtt_ms": " ms",
+            "target_bitrate_mbps": " Mbps",
+            "actual_bitrate_mbps": " Mbps",
+            "estimated_bandwidth_mbps": " Mbps",
+            "packet_loss_pct": " %",
+            "jitter_ms": " ms",
+        }
+
+        for key, value in values.items():
+            if key not in self.dashboard_vars:
+                self.dashboard_vars[key] = tk.StringVar(value="n/a")
+
+            self.dashboard_vars[key].set(value)
+            self._refresh_dashboard_display_value(key, suffixes.get(key, ""))
 
     def _path_row(self, parent, row_idx: int, label: str, var: tk.StringVar, command) -> None:
         ttk.Label(parent, text=label).grid(row=row_idx, column=0, sticky="w", padx=(0, 8), pady=4)
@@ -701,10 +848,6 @@ class LauncherApp(tk.Tk):
         else:
             self.input_hint_var.set("Select an MP4/MOV/MKV/AVI/WEBM video file.")
 
-    # ============================================================
-    # Auto detection
-    # ============================================================
-
     def auto_detect_paths(self) -> None:
         gst_root = detect_gstreamer_root(self.base_dir)
         unity_exe = detect_unity_exe(self.base_dir)
@@ -743,10 +886,6 @@ class LauncherApp(tk.Tk):
             self.log("[detect] Python exe was not found.")
 
         self.on_input_mode_changed()
-
-    # ============================================================
-    # Browsers
-    # ============================================================
 
     def browse_gst_root(self) -> None:
         value = filedialog.askdirectory(title="Select GStreamer root folder")
@@ -815,10 +954,6 @@ class LauncherApp(tk.Tk):
             self.input_mode_var.set("image-folder")
             self.on_input_mode_changed()
 
-    # ============================================================
-    # Logging
-    # ============================================================
-
     def log(self, text: str) -> None:
         timestamp = time.strftime("%H:%M:%S")
         self.log_queue.put(f"[{timestamp}] {text}\n")
@@ -827,6 +962,11 @@ class LauncherApp(tk.Tk):
         try:
             while True:
                 line = self.log_queue.get_nowait()
+
+                if isinstance(line, str) and line.startswith("__METRICS__"):
+                    self.update_dashboard_from_metrics_line(line[len("__METRICS__"):])
+                    continue
+
                 self.log_text.insert("end", line)
                 self.log_text.see("end")
         except queue.Empty:
@@ -836,10 +976,6 @@ class LauncherApp(tk.Tk):
 
     def clear_log(self) -> None:
         self.log_text.delete("1.0", "end")
-
-    # ============================================================
-    # Validation / environment
-    # ============================================================
 
     def make_gstreamer_env(self) -> dict[str, str]:
         env = os.environ.copy()
@@ -864,9 +1000,8 @@ class LauncherApp(tk.Tk):
                 env["GI_TYPELIB_PATH"] = gst_typelibs + os.pathsep + env.get("GI_TYPELIB_PATH", "")
 
         env["GST_DEBUG_NO_COLOR"] = "1"
-
-        # Keep a clean local registry next to this GUI. This avoids plugin blacklist
-        # surprises caused by older broken registry cache files.
+        env["PYTHONUNBUFFERED"] = "1"
+        env["PYTHONIOENCODING"] = "utf-8"
         env["GST_REGISTRY"] = str(self.base_dir / "gst-registry-gui.bin")
 
         return env
@@ -1020,59 +1155,6 @@ class LauncherApp(tk.Tk):
 
         return True
 
-
-    def _quest_discovery_log(self, message: str) -> None:
-        try:
-            if hasattr(self, "log"):
-                self.log(message)
-            elif hasattr(self, "_log"):
-                self._log(message)
-            elif hasattr(self, "log_queue"):
-                self.log_queue.put(message)
-            elif hasattr(self, "log_text"):
-                self.log_text.insert(tk.END, message + "\n")
-                self.log_text.see(tk.END)
-            else:
-                print(message)
-        except Exception:
-            print(message)
-
-    def scan_for_quest(self) -> None:
-        self._quest_discovery_log("[gui] Scanning for Quest receiver...")
-
-        if discover_quest is None:
-            messagebox.showerror(
-                "Quest discovery unavailable",
-                "Could not import quest_discovery.py.\n\n"
-                "Make sure quest_discovery.py is in the same folder as launcher_gui.py."
-            )
-            self._quest_discovery_log("[gui] Quest discovery unavailable: quest_discovery.py import failed.")
-            return
-
-        try:
-            result = discover_quest(timeout_seconds=5.0, interval_seconds=0.25)
-        except Exception as exc:
-            messagebox.showerror("Quest discovery failed", str(exc))
-            self._quest_discovery_log(f"[gui] Quest discovery failed: {exc}")
-            return
-
-        if result is None:
-            messagebox.showwarning(
-                "Quest not found",
-                "Quest receiver was not found.\n\n"
-                "Make sure the Quest APK is open and both devices are on the same Wi-Fi."
-            )
-            self._quest_discovery_log("[gui] Quest receiver not found.")
-            return
-
-        quest_ip = result["ip"]
-        signaling_port = str(result["signaling_port"])
-
-        self.host_var.set(quest_ip)
-        self.port_var.set(signaling_port)
-
-        self._quest_discovery_log(f"[gui] Found Quest receiver at {quest_ip}:{signaling_port}")
-
     @staticmethod
     def _list_supported_images(folder: Path, image_format: str) -> list[Path]:
         if not folder.is_dir():
@@ -1089,10 +1171,6 @@ class LauncherApp(tk.Tk):
 
         files = [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in exts]
         return sorted(files, key=lambda p: p.name.lower())
-
-    # ============================================================
-    # Metadata detection
-    # ============================================================
 
     def detect_metadata(self) -> None:
         input_mode = self.input_mode_var.get().strip().lower()
@@ -1223,10 +1301,6 @@ class LauncherApp(tk.Tk):
         except Exception:
             return None
 
-    # ============================================================
-    # Process launch / stop
-    # ============================================================
-
     def launch_unity(self) -> None:
         if self.unity.is_running():
             self.log("[unity] Unity is already running.")
@@ -1262,7 +1336,7 @@ class LauncherApp(tk.Tk):
 
         self._start_reader_thread(self.unity)
         self.log("[unity] Unity process started.")
-        self.log("[unity] In Unity: press Play, click Game view, then press S to start the receiver.")
+        self.log("[unity] In Unity: press Play, wait for WebRTC receiver to listen, then Start Streaming here.")
 
     def start_streaming(self) -> None:
         if self.sender.is_running():
@@ -1287,11 +1361,8 @@ class LauncherApp(tk.Tk):
         height = self.height_var.get().strip()
         fps = self.fps_var.get().strip()
         bitrate = self.bitrate_var.get().strip()
+        loop_flag = "--loop" if self.loop_var.get() else "--no-loop"
 
-        # New Python backend syntax:
-        #
-        # python webrtc_sender.py h265 --input-mode image-folder --input C:/frames
-        #                          --image-format auto 127.0.0.1 9001 1920 960 30 8000
         python_backend_args = [
             codec,
             "--input-mode",
@@ -1300,6 +1371,7 @@ class LauncherApp(tk.Tk):
             input_path,
             "--image-format",
             image_format,
+            loop_flag,
             host,
             port,
             width,
@@ -1308,8 +1380,6 @@ class LauncherApp(tk.Tk):
             bitrate,
         ]
 
-        # Old executable fallback syntax for older .exe senders.
-        # It only supports video files.
         exe_backend_args = [
             codec,
             input_path,
@@ -1323,7 +1393,7 @@ class LauncherApp(tk.Tk):
 
         if sender_backend.suffix.lower() == ".py":
             python_exe = self.python_exe_var.get().strip()
-            cmd = [python_exe, str(sender_backend), *python_backend_args]
+            cmd = [python_exe, "-u", str(sender_backend), *python_backend_args]
         else:
             if input_mode != "video-file":
                 messagebox.showerror(
@@ -1335,6 +1405,7 @@ class LauncherApp(tk.Tk):
             cmd = [str(sender_backend), *exe_backend_args]
 
         self.log("[sender] Starting stream...")
+        self.log("[sender] Loop playback: " + ("enabled" if self.loop_var.get() else "disabled"))
         self.log("[sender] " + " ".join(f'"{x}"' if " " in x else x for x in cmd))
 
         try:
@@ -1365,6 +1436,15 @@ class LauncherApp(tk.Tk):
                 return
 
             for line in proc.stdout:
+                clean = line.strip()
+
+                if clean.startswith("METRICS|"):
+                    self.log_queue.put("__METRICS__" + clean)
+                    continue
+
+                if "ICE candidate" in clean:
+                    continue
+
                 self.log_queue.put(f"[{handle.name.lower()}] {line}")
 
             code = proc.poll()
@@ -1396,10 +1476,6 @@ class LauncherApp(tk.Tk):
                 proc.kill()
         except Exception as exc:
             self.log(f"[{label}] Failed to stop process: {exc}")
-
-    # ============================================================
-    # Status / close
-    # ============================================================
 
     def _update_status_loop(self) -> None:
         self.unity_status_var.set("Unity: running" if self.unity.is_running() else "Unity: stopped")
