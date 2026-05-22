@@ -102,7 +102,7 @@ def normalize_path_for_gstreamer(path: str) -> str:
     Example:
         C:\\Users\\Example\\video.mp4
     becomes:
-        <USER_HOME>/video.mp4
+        C:/Users/Example/video.mp4
     """
     return str(path).strip().replace("\\", "/")
 

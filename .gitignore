@@ -1,23 +1,25 @@
-# Python
+﻿# Python
 __pycache__/
-*.py[cod]
+*.pyc
 *.pyo
 *.pyd
 .venv/
 venv/
 env/
-dist/
-build/
-*.egg-info/
+*.log
 
-# Unity
-Library/
-Temp/
-Logs/
-Obj/
-Build/
-Builds/
-UserSettings/
+# Local configuration
+config.local.ini
+*.local.ini
+
+# Unity generated files
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
 .vs/
 *.csproj
 *.sln
@@ -26,42 +28,109 @@ UserSettings/
 *.booproj
 *.svd
 *.pdb
+*.mdb
 *.opendb
 *.VC.db
 
 # Native build outputs
-*.o
+x64/
+Debug/
+Release/
+out/
+build/
+CMakeFiles/
+CMakeCache.txt
 *.obj
-*.lib
-*.pdb
+*.ilk
+*.tlog
+*.lastbuildstate
 
-# Large binaries / media
-*.apk
-*.aab
+# Media files
 *.mp4
 *.mkv
 *.avi
 *.mov
+*.webm
+*.yuv
 *.h264
 *.h265
 *.hevc
-*.av1
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Backup files
+*.backup_*
+*.bak
+*.orig
+
+# Backup / temporary files
+*backup*
+*.bak
+*.orig
+*.old
+*.tmp
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local config
+config.local.ini
+*.local.ini
+
+# Unity generated folders
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+.vs/
+*.csproj
+*.sln
+*.user
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# Native build outputs / binaries
+x64/
+Debug/
+Release/
+build/
+out/
+CMakeFiles/
+CMakeCache.txt
+*.obj
+*.ilk
+*.tlog
+*.lastbuildstate
+*.dll
+*.lib
+*.exp
+
+# Media files
+*.mp4
+*.mkv
+*.avi
+*.mov
 *.webm
-*.zip
-*.7z
-*.rar
+*.yuv
+*.h264
+*.h265
+*.hevc
 
-# Local configuration
-config.ini
-.env
-local_paths.txt
-PREPARED_FROM_LOCAL_PATHS.md
-PRIVACY_SCAN_FAILED.md
-
-# Bundled runtimes
-Runtime/
-launcher/Runtime/
-
-# Editor
-.vscode/
-.idea/
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
