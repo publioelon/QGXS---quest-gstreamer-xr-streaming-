@@ -78,3 +78,31 @@ QGXS---quest-gstreamer-xr-streaming-/
 ├── README.md
 ├── LICENSE
 └── .gitignore
+
+## Meta Quest 3 unified receiver
+
+A validated Meta Quest 3 receiver is included under:
+
+```text
+receiver/quest3/
+```
+
+It uses GStreamer WebRTC, Android MediaCodec hardware decoding, an Android Surface/SurfaceTexture, and a Unity external OES texture.
+
+The receiver supports H.264, H.265, and AV1 without copying every decoded full-resolution frame through application CPU memory.
+
+The validated Phase 3 checkpoint includes:
+
+- automatic codec detection;
+- manual codec policy;
+- runtime resolution and stream FPS;
+- runtime signaling-port selection;
+- hardware decoding through Android MediaCodec;
+- external OES rendering in Unity;
+- WebRTC session reconnection.
+
+Documentation:
+
+- `receiver/quest3/README_PHASE3.md`
+- `docs/quest3_phase3_validation.md`
+
